@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.4.2 — repo audit polish
+
+- Applied snapshot command timeouts to optional watchlist-channel expansion, not only metadata batch fetches.
+- Refreshed the example report to match current filter-accounting and URL-rich output.
+- Hardened the repository quality scanner for additional token shapes and generated build/dist artifacts.
+- Added read-only GitHub Actions permissions.
+- Added regression coverage for snapshot channel timeout propagation.
+
 ## v0.4.1 — CLI polish and timeout semantics
 
 - Classified YouTube comment collection timeouts as `status: "timeout"` instead of generic `error`.

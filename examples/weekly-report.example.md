@@ -7,6 +7,13 @@
 - Comment sets: 1
 - Search fallback hits: 0 / 1
 - Search hard failures: 0
+- Filter accounting:
+  - Candidates before filters: 3
+  - Kept: 3
+  - Removed by age/date: 0
+  - Removed by missing publication date: 0
+  - Removed by min views: 0
+  - Removed by min comments: 0
 
 ## Executive read
 
@@ -14,7 +21,7 @@ The sample run found a small cluster of public videos around AI agents. The usef
 
 ## 1. Top videos by signal
 
-- **How to Build an AI Agent Workflow** | score: 71.2 | relevance=0.8 freshness=1.0 intensity=0.55 repeatability=0.3 usefulness=0.7 | queries: AI agents
+- **How to Build an AI Agent Workflow** | score: 71.2 | channel: Example Channel | URL: https://www.youtube.com/watch?v=demo123 | relevance=0.8 freshness=1.0 intensity=0.55 repeatability=0.3 usefulness=0.7 | queries: AI agents
 
 ## 2. Top repeated pains from comments
 
@@ -34,13 +41,13 @@ The sample run found a small cluster of public videos around AI agents. The usef
 - **step-by-step build** - 1 matches
   - How to Build an AI Agent Workflow
 
-## 6. 3 content strategy ideas
+## 6. Content strategy ideas
 
 - Create a practical content asset around setup and complexity: show how to avoid that pain and where the market is breaking.
 - Use the step-by-step build format because the pattern is already attracting audience attention.
 - Run a weekly YouTube market radar: 5 videos, 3 pains, 2 replacement signals, 1 next action.
 
-## 7. 3 workflow / operations ideas
+## 7. Workflow / operations ideas
 
 - Create a practical AI operations breakdown around setup and complexity: show how to solve it with process instead of manual heroics.
 - Create a series about memory, orchestration, and human-in-the-loop as an operating layer over AI-market chaos.

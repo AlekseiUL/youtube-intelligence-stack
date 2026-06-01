@@ -58,7 +58,7 @@ def test_search_fallback_records_error_then_cache_hit(monkeypatch) -> None:
 
 
 def test_snapshots_metadata_batch_parses_json_lines(monkeypatch) -> None:
-    def fake_run_command(args):
+    def fake_run_command(args, timeout_sec=None):
         return FakeCompleted('{"id":"a","title":"A"}\n{"id":"b","title":"B"}\n')
 
     monkeypatch.setattr(yt_snapshots, "run_command", fake_run_command)
@@ -66,6 +66,21 @@ def test_snapshots_metadata_batch_parses_json_lines(monkeypatch) -> None:
     rows = yt_snapshots.fetch_metadata_batch(["https://youtu.be/a", "https://youtu.be/b"])
 
     assert [row["id"] for row in rows] == ["a", "b"]
+
+
+def test_snapshots_channel_url_fetch_uses_timeout(monkeypatch) -> None:
+    seen = {}
+
+    def fake_run_command(args, timeout_sec=None):
+        seen["timeout_sec"] = timeout_sec
+        return FakeCompleted(json.dumps({"entries": [{"id": "abc"}]}, ensure_ascii=False))
+
+    monkeypatch.setattr(yt_snapshots, "run_command", fake_run_command)
+
+    urls = yt_snapshots.fetch_channel_video_urls("https://www.youtube.com/@example/videos", 1, timeout_sec=12.5)
+
+    assert urls == ["https://www.youtube.com/watch?v=abc"]
+    assert seen["timeout_sec"] == 12.5
 
 
 def test_transcript_language_prefers_manual_before_auto() -> None:

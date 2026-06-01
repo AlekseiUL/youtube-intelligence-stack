@@ -74,15 +74,19 @@ def fetch_metadata_resilient(urls: list[str], timeout_sec: float | None = None) 
         return rows, errors
 
 
-def fetch_channel_video_urls(channel_url: str, limit: int) -> list[str]:
-    result = run_command([
+def fetch_channel_video_urls(channel_url: str, limit: int, timeout_sec: float | None = None) -> list[str]:
+    command = [
         YT_DLP,
         "--flat-playlist",
         "--playlist-end",
         str(limit),
         "--dump-single-json",
         channel_url,
-    ])
+    ]
+    if timeout_sec is None:
+        result = run_command(command)
+    else:
+        result = run_command(command, timeout_sec=timeout_sec)
     payload = json.loads(result.stdout)
     return [f"https://www.youtube.com/watch?v={item['id']}" for item in (payload.get("entries") or []) if item.get("id")]
 
@@ -106,7 +110,7 @@ def main() -> None:
 
     if args.include_watchlist_channels:
         for channel in load_channel_watchlist(args.channels_file):
-            urls.extend(fetch_channel_video_urls(channel["url"], args.limit_per_channel))
+            urls.extend(fetch_channel_video_urls(channel["url"], args.limit_per_channel, timeout_sec=args.command_timeout_sec))
 
     deduped_urls: list[str] = []
     seen: set[str] = set()

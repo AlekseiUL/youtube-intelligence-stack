@@ -5,6 +5,7 @@ import ast
 import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -15,7 +16,9 @@ PUBLIC_ASSET_SUFFIXES = {'.jpg', '.jpeg', '.png', '.webp'}
 RUNTIME_MEDIA_SUFFIXES = {'.webm', '.wav', '.mp4', '.mkv', '.ogg'}
 PRIVATE_PATTERNS = {
     'absolute_user_path': re.compile(r'/(Users|home)/[^\s]+'),
-    'secret_shape': re.compile(r'(ghp_|gho_|sk-[A-Za-z0-9_-]{20,}|xox[baprs]-|AIza[0-9A-Za-z_-]{20,})'),
+    'secret_shape': re.compile(
+        r'(ghp_|gho_|github_pat_|glpat-|sk-[A-Za-z0-9_-]{20,}|xox[baprs]-|AIza[0-9A-Za-z_-]{20,}|AKIA[0-9A-Z]{16})'
+    ),
 }
 
 
@@ -23,6 +26,18 @@ def iter_files():
     for p in ROOT.rglob('*'):
         if any(part in SKIP_DIRS for part in p.relative_to(ROOT).parts):
             continue
+        if p.is_file():
+            yield p
+
+
+def iter_tracked_files():
+    try:
+        output = subprocess.check_output(['git', '-C', str(ROOT), 'ls-files'], text=True)
+    except Exception:
+        yield from iter_files()
+        return
+    for rel in output.splitlines():
+        p = ROOT / rel
         if p.is_file():
             yield p
 
@@ -53,10 +68,9 @@ def check_json(errors: list[str]) -> None:
 
 def check_privacy(errors: list[str]) -> None:
     scanner_self = Path('scripts/repository_quality.py')
-    workflow_self = Path('.github/workflows/repository-quality.yml')
     for p in iter_files():
         rel = p.relative_to(ROOT)
-        if rel in {scanner_self, workflow_self, Path('.gitignore')}:
+        if rel in {scanner_self, Path('.gitignore')}:
             continue
         if not is_text_file(p):
             continue
@@ -86,9 +100,9 @@ def check_markdown_links(errors: list[str]) -> None:
 
 def check_generated_artifacts(errors: list[str]) -> None:
     forbidden = []
-    for p in iter_files():
+    for p in iter_tracked_files():
         rel = p.relative_to(ROOT)
-        if any(part in {'data', 'outputs', 'reports', 'cache'} for part in rel.parts):
+        if any(part in {'build', 'cache', 'data', 'dist', 'outputs', 'reports'} for part in rel.parts):
             forbidden.append(str(rel))
         if p.suffix in {'.pyc', '.pyo'} or '__pycache__' in rel.parts:
             forbidden.append(str(rel))
