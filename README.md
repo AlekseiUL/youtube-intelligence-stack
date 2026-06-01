@@ -56,9 +56,9 @@ Main capabilities:
 python3 -m pip install "git+https://github.com/AlekseiUL/youtube-intelligence-stack.git"
 youtube-intel doctor
 youtube-intel init ~/youtube-intel-demo --template creator
-youtube-intel search ~/youtube-intel-demo --query "AI agents" --limit-per-query 3 --skip-watchlist-channels --fresh-only
+youtube-intel search ~/youtube-intel-demo --query "AI agents" --limit-per-query 3 --skip-watchlist-channels
 youtube-intel snapshots ~/youtube-intel-demo --limit 3
-youtube-intel report ~/youtube-intel-demo --fresh-only
+youtube-intel report ~/youtube-intel-demo
 ```
 
 ### Option B — run from checkout
@@ -129,9 +129,18 @@ youtube-intel search ~/youtube-intel-demo --query "AI agents" --fresh-only --min
 youtube-intel report ~/youtube-intel-demo --max-age-days 7 --min-views 100
 ```
 
-- `--fresh-only` keeps recently published videos only (`7` days for search, current `--days` window for report).
+- `--fresh-only` keeps recently published videos only (`7` days for search, current `--days` window for report). It is strict: videos with missing publication dates are excluded.
 - `--max-age-days N` keeps only videos with a known publication date within `N` days.
 - `--min-views` and `--min-comments` filter weak/empty results before reports.
+- Search bundles and reports include filter accounting: candidates before filters, kept rows, old rows removed, undated rows removed, and threshold removals.
+
+For a conservative end-to-end run, use:
+
+```bash
+youtube-intel full ~/youtube-intel-demo --safe --query "AI agents" --limit-per-query 3 --skip-watchlist-channels
+```
+
+`--safe` adds timeouts, small downstream limits, and continue-on-search-error behavior so first runs degrade visibly instead of hanging.
 
 Legacy checkout syntax still works:
 
@@ -148,11 +157,10 @@ youtube-intel search ~/youtube-intel-demo \
   --limit-per-query 3 \
   --skip-watchlist-channels \
   --command-timeout-sec 30 \
-  --continue-on-search-error \
-  --fresh-only
+  --continue-on-search-error
 
 youtube-intel snapshots ~/youtube-intel-demo --limit 3
-youtube-intel report ~/youtube-intel-demo --fresh-only
+youtube-intel report ~/youtube-intel-demo
 ```
 
 Reports are written under:
@@ -235,9 +243,9 @@ MIT. See [`LICENSE`](LICENSE).
 python3 -m pip install "git+https://github.com/AlekseiUL/youtube-intelligence-stack.git"
 youtube-intel doctor
 youtube-intel init ~/youtube-intel-demo --template creator
-youtube-intel search ~/youtube-intel-demo --query "AI agents" --limit-per-query 3 --skip-watchlist-channels --fresh-only
+youtube-intel search ~/youtube-intel-demo --query "AI agents" --limit-per-query 3 --skip-watchlist-channels
 youtube-intel snapshots ~/youtube-intel-demo --limit 3
-youtube-intel report ~/youtube-intel-demo --fresh-only
+youtube-intel report ~/youtube-intel-demo
 ```
 
 Сгенерированные данные лежат в project instance, а не в кодовом repo. Это специально: так безопаснее публиковать код и не таскать за собой приватную исследовательскую историю.

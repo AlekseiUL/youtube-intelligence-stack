@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
-from common import ensure_project_dirs, COMMENTS_DIR, now_iso, resolve_video_inputs, run_command, write_json, write_jsonl
+from common import ensure_project_dirs, COMMENTS_DIR, now_iso, resolve_video_inputs, run_command, sleep_ms, write_json, write_jsonl
 
 
 YT_DLP = shutil.which("yt-dlp") or "yt-dlp"
@@ -30,6 +30,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--limit", type=int, default=10)
     parser.add_argument("--sort", action="append", choices=["top", "new", "recent"], default=[])
     parser.add_argument("--command-timeout-sec", type=float, default=8.0)
+    parser.add_argument("--retry-count", type=int, default=1)
+    parser.add_argument("--retry-backoff-ms", type=int, default=2500)
     parser.add_argument("--overwrite", action="store_true")
     return parser.parse_args()
 
@@ -65,6 +67,27 @@ def fetch_comments(url: str, sort_mode: str, timeout_sec: float) -> dict[str, An
         if not info_files:
             return {}
         return json.loads(info_files[0].read_text(encoding="utf-8"))
+
+
+def fetch_comments_with_retries(
+    url: str,
+    sort_mode: str,
+    timeout_sec: float,
+    *,
+    retry_count: int,
+    retry_backoff_ms: int,
+) -> tuple[dict[str, Any], str | None]:
+    last_error: str | None = None
+    for attempt_no in range(1, retry_count + 2):
+        try:
+            return fetch_comments(url, sort_mode, timeout_sec), None
+        except Exception as exc:
+            last_error = str(exc)
+            if attempt_no <= retry_count:
+                sleep_ms(retry_backoff_ms * attempt_no)
+            else:
+                break
+    return {}, last_error
 
 
 def get_thread_fields(comment_id: str | None, parent: str | None) -> tuple[str | None, str | None, bool]:
@@ -169,7 +192,15 @@ def main() -> None:
                 flush=True,
             )
             try:
-                payload = fetch_comments(url, sort_mode, args.command_timeout_sec)
+                payload, retry_error = fetch_comments_with_retries(
+                    url,
+                    sort_mode,
+                    args.command_timeout_sec,
+                    retry_count=args.retry_count,
+                    retry_backoff_ms=args.retry_backoff_ms,
+                )
+                if retry_error:
+                    errors[sort_mode] = retry_error
                 payloads[sort_mode] = payload
                 rows_by_sort[sort_mode] = normalize_comments(payload, sort_mode, collected_at) if payload else []
                 print(

@@ -1,0 +1,29 @@
+# Changelog
+
+## v0.4.0 — UX and robustness hardening
+
+- Removed strict `--fresh-only` from the public quick start so first runs are less likely to produce an empty report.
+- Added filter accounting to search bundles and reports: candidates, kept rows, old rows removed, undated rows removed, and threshold removals.
+- Made empty reports explicitly evidence-insufficient instead of presenting them as market-signal reads.
+- Added source URLs to top-video report rows.
+- Added safer empty-section rendering for recommendations and proof assets.
+- Added `youtube-intel full --safe` with conservative limits, timeouts, and continue-on-search-error behavior.
+- Added timeout support to transcripts metadata/subtitle collection.
+- Added retry support to comments collection.
+- Made snapshots more resilient to bad JSON lines and batch failures.
+- Expanded CI to Python 3.10–3.13, installed-package smoke outside repo cwd, and evidence-based offline report smoke.
+
+## v0.3.0 — report quality, filters, and release posture
+
+- Added freshness and threshold filters.
+- Added insufficient-evidence behavior for small/empty samples.
+- Added collector tests and stronger public safety posture.
+
+## v0.2.0 — installable CLI
+
+- Added package metadata and `youtube-intel` console entrypoint.
+- Added editable/install smoke path and legacy `run.py` compatibility.
+
+## v0.1.0 — sanitized public release
+
+- Published a clean local-first YouTube public-source research stack without private watchlists, cron, credentials, generated evidence, or internal workspace paths.

@@ -37,19 +37,41 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--include-watchlist-channels", action="store_true")
     parser.add_argument("--limit", type=int, default=20)
     parser.add_argument("--limit-per-channel", type=int, default=5)
+    parser.add_argument("--command-timeout-sec", type=float, default=20.0)
     return parser.parse_args()
 
 
-def fetch_metadata_batch(urls: list[str]) -> list[dict[str, Any]]:
+def fetch_metadata_batch(urls: list[str], timeout_sec: float | None = None) -> list[dict[str, Any]]:
     if not urls:
         return []
-    result = run_command([YT_DLP, "--dump-json", "--skip-download", *urls])
+    if timeout_sec is None:
+        result = run_command([YT_DLP, "--dump-json", "--skip-download", *urls])
+    else:
+        result = run_command([YT_DLP, "--dump-json", "--skip-download", *urls], timeout_sec=timeout_sec)
     rows: list[dict[str, Any]] = []
     for line in result.stdout.splitlines():
         line = line.strip()
-        if line:
+        if not line:
+            continue
+        try:
             rows.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
     return rows
+
+
+def fetch_metadata_resilient(urls: list[str], timeout_sec: float | None = None) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    try:
+        return fetch_metadata_batch(urls, timeout_sec=timeout_sec), []
+    except Exception as exc:
+        rows: list[dict[str, Any]] = []
+        errors: list[dict[str, str]] = []
+        for url in urls:
+            try:
+                rows.extend(fetch_metadata_batch([url], timeout_sec=timeout_sec))
+            except Exception as item_exc:
+                errors.append({"url": url, "error": str(item_exc)[-500:]})
+        return rows, errors
 
 
 def fetch_channel_video_urls(channel_url: str, limit: int) -> list[str]:
@@ -95,7 +117,8 @@ def main() -> None:
 
     captured_at = now_iso()
     rows = []
-    for raw in fetch_metadata_batch(deduped_urls):
+    raw_rows, snapshot_errors = fetch_metadata_resilient(deduped_urls, timeout_sec=args.command_timeout_sec)
+    for raw in raw_rows:
         base = normalize_video_record(raw, source="snapshot", query=None)
         row = {
             "captured_at": captured_at,
@@ -127,6 +150,8 @@ def main() -> None:
         "count": len(rows),
         "run_path": str(run_path),
         "history_path": str(history_path),
+        "status": "ok" if rows and not snapshot_errors else ("degraded" if rows else "empty"),
+        "errors": snapshot_errors,
     })
 
     print(json.dumps({
@@ -134,6 +159,8 @@ def main() -> None:
         "count": len(rows),
         "run_path": str(run_path),
         "history_path": str(history_path),
+        "status": "ok" if rows and not snapshot_errors else ("degraded" if rows else "empty"),
+        "errors": snapshot_errors,
     }, ensure_ascii=False, indent=2))
 
 

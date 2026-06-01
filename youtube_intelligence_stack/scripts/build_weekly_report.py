@@ -109,20 +109,29 @@ def load_recent_transcripts(cutoff) -> dict[str, dict[str, Any]]:
     return items
 
 
-def report_video_passes_filters(row: dict[str, Any], *, max_age_days: int | None, min_views: int, min_comments: int) -> bool:
+def report_video_filter_reason(row: dict[str, Any], *, max_age_days: int | None, min_views: int, min_comments: int) -> str | None:
     if safe_int(row.get("views")) < min_views:
-        return False
+        return "removed_by_min_views"
     if safe_int(row.get("comments_count")) < min_comments:
-        return False
+        return "removed_by_min_comments"
     if max_age_days is not None:
         published = iso_to_datetime(row.get("published_at"))
         if not published:
-            return False
+            return "removed_by_missing_publication_date"
         if published.tzinfo is None:
             published = published.replace(tzinfo=now_utc().tzinfo)
         if max((now_utc() - published).days, 0) > max_age_days:
-            return False
-    return True
+            return "removed_by_age"
+    return None
+
+
+def report_video_passes_filters(row: dict[str, Any], *, max_age_days: int | None, min_views: int, min_comments: int) -> bool:
+    return report_video_filter_reason(
+        row,
+        max_age_days=max_age_days,
+        min_views=min_views,
+        min_comments=min_comments,
+    ) is None
 
 
 def days_since(value: str | None) -> int | None:
@@ -450,12 +459,65 @@ def summarize_search_health(query_runs: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def merge_search_filter_accounting(bundles: list[dict[str, Any]], fallback: dict[str, int]) -> dict[str, int]:
+    keys = [
+        "candidates_before_filters",
+        "kept",
+        "removed_by_age",
+        "removed_by_missing_publication_date",
+        "removed_by_min_views",
+        "removed_by_min_comments",
+    ]
+    merged = {key: 0 for key in keys}
+    found = False
+    for bundle in bundles:
+        accounting = bundle.get("filter_accounting") or {}
+        if accounting:
+            found = True
+        for key in keys:
+            merged[key] += safe_int(accounting.get(key))
+    return merged if found else fallback
+
+
+def summarize_filter_accounting(videos: list[dict[str, Any]], *, max_age_days: int | None, min_views: int, min_comments: int) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    accounting = {
+        "candidates_before_filters": len(videos),
+        "kept": 0,
+        "removed_by_age": 0,
+        "removed_by_missing_publication_date": 0,
+        "removed_by_min_views": 0,
+        "removed_by_min_comments": 0,
+    }
+    kept: list[dict[str, Any]] = []
+    for row in videos:
+        reason = report_video_filter_reason(
+            row,
+            max_age_days=max_age_days,
+            min_views=min_views,
+            min_comments=min_comments,
+        )
+        if reason:
+            accounting[reason] += 1
+            continue
+        accounting["kept"] += 1
+        kept.append(row)
+    return kept, accounting
+
+
 def clean_snippet(text: str, limit: int = 160) -> str:
     text = " ".join((text or "").split())
     return text[: limit - 1] + "…" if len(text) > limit else text
 
 
-def render_report(*, days: int, generated_at: str, top_videos, pains, migration_signals, risk_signals, hooks, content_strategy_ideas, operations_ideas, proof_assets, search_rows_count, snapshots_count, comment_sets_count, search_health) -> str:
+def render_report(*, days: int, generated_at: str, top_videos, pains, migration_signals, risk_signals, hooks, content_strategy_ideas, operations_ideas, proof_assets, search_rows_count, snapshots_count, comment_sets_count, search_health, filter_accounting: dict[str, int] | None = None) -> str:
+    filter_accounting = filter_accounting or {
+        "candidates_before_filters": search_rows_count,
+        "kept": len(top_videos or []),
+        "removed_by_age": 0,
+        "removed_by_missing_publication_date": 0,
+        "removed_by_min_views": 0,
+        "removed_by_min_comments": 0,
+    }
     lines = []
     lines.append("# YouTube Intelligence Weekly Report\n")
     lines.append(f"- Generated at: {generated_at}")
@@ -464,10 +526,20 @@ def render_report(*, days: int, generated_at: str, top_videos, pains, migration_
     lines.append(f"- Snapshot rows: {snapshots_count}")
     lines.append(f"- Comment sets: {comment_sets_count}")
     lines.append(f"- Search fallback hits: {search_health['fallback_hits']} / {search_health['queries_total']}")
-    lines.append(f"- Search hard failures: {search_health['hard_failures']}\n")
+    lines.append(f"- Search hard failures: {search_health['hard_failures']}")
+    lines.append("- Filter accounting:")
+    lines.append(f"  - Candidates before filters: {filter_accounting.get('candidates_before_filters', 0)}")
+    lines.append(f"  - Kept: {filter_accounting.get('kept', 0)}")
+    lines.append(f"  - Removed by age/date: {filter_accounting.get('removed_by_age', 0)}")
+    lines.append(f"  - Removed by missing publication date: {filter_accounting.get('removed_by_missing_publication_date', 0)}")
+    lines.append(f"  - Removed by min views: {filter_accounting.get('removed_by_min_views', 0)}")
+    lines.append(f"  - Removed by min comments: {filter_accounting.get('removed_by_min_comments', 0)}\n")
 
     lines.append("## Executive read")
-    lines.append("This run is not just a video list. It is a market-signal pass: repeated pains, narrative patterns, replacement language, and useful evidence for your content, product, or operating workflow.\n")
+    if top_videos:
+        lines.append("This run surfaced usable evidence: repeated titles, public metrics, narrative patterns, replacement language, and source links for your content, product, or operating workflow.\n")
+    else:
+        lines.append("Evidence insufficient: this run did not surface videos after filters. Treat the output as a run-status note, not as market insight.\n")
 
     lines.append("## 1. Top videos by signal")
     if top_videos:
@@ -475,6 +547,8 @@ def render_report(*, days: int, generated_at: str, top_videos, pains, migration_
             c = row.get("score_components") or {}
             lines.append(
                 f"- **{row.get('title') or 'Untitled'}** | score: {row.get('signal_score')} | "
+                f"channel: {row.get('channel_name') or 'Unknown'} | "
+                f"URL: {row.get('video_url') or 'unavailable'} | "
                 f"relevance={c.get('topical_relevance')} freshness={c.get('freshness')} intensity={c.get('signal_intensity')} repeatability={c.get('repeatability')} usefulness={c.get('usefulness')} | "
                 f"queries: {', '.join(row.get('queries') or [])}"
             )
@@ -518,19 +592,28 @@ def render_report(*, days: int, generated_at: str, top_videos, pains, migration_
         lines.append("- Hook patterns need more surfaced titles to become meaningful.")
     lines.append("")
 
-    lines.append("## 6. 3 content strategy ideas")
-    for idea in content_strategy_ideas:
-        lines.append(f"- {idea}")
+    lines.append("## 6. Content strategy ideas")
+    if content_strategy_ideas:
+        for idea in content_strategy_ideas:
+            lines.append(f"- {idea}")
+    else:
+        lines.append("- No recommendation due to insufficient evidence.")
     lines.append("")
 
-    lines.append("## 7. 3 workflow / operations ideas")
-    for idea in operations_ideas:
-        lines.append(f"- {idea}")
+    lines.append("## 7. Workflow / operations ideas")
+    if operations_ideas:
+        for idea in operations_ideas:
+            lines.append(f"- {idea}")
+    else:
+        lines.append("- No recommendation due to insufficient evidence.")
     lines.append("")
 
     lines.append("## 8. Proof assets / examples worth adapting")
-    for asset in proof_assets:
-        lines.append(f"- {asset}")
+    if proof_assets:
+        for asset in proof_assets:
+            lines.append(f"- {asset}")
+    else:
+        lines.append("- none")
     lines.append("")
 
     lines.append("## Infra note")
@@ -546,27 +629,31 @@ def main() -> None:
     args = parse_args()
     cutoff = now_utc() - timedelta(days=args.days)
 
-    search_rows, query_runs, _bundles = load_recent_search_data(cutoff)
+    search_rows, query_runs, bundles = load_recent_search_data(cutoff)
     snapshots = [row for row in load_snapshot_history() if (iso_to_datetime(row.get("captured_at")) or now_utc()) >= cutoff]
     comment_sets = load_recent_comment_sets(cutoff)
     transcripts = load_recent_transcripts(cutoff)
 
     max_age_days = args.days if args.fresh_only else args.max_age_days
-    merged_videos = [
-        row for row in merge_video_signals(search_rows, snapshots, comment_sets, transcripts)
-        if report_video_passes_filters(
-            row,
-            max_age_days=max_age_days,
-            min_views=args.min_views,
-            min_comments=args.min_comments,
-        )
-    ]
+    all_merged_videos = merge_video_signals(search_rows, snapshots, comment_sets, transcripts)
+    merged_videos, local_filter_accounting = summarize_filter_accounting(
+        all_merged_videos,
+        max_age_days=max_age_days,
+        min_views=args.min_views,
+        min_comments=args.min_comments,
+    )
+    report_filters_active = max_age_days is not None or args.min_views > 0 or args.min_comments > 0
+    filter_accounting = local_filter_accounting if report_filters_active else merge_search_filter_accounting(bundles, local_filter_accounting)
     pains = extract_pains(comment_sets)
     migration_signals = extract_migration_signals(merged_videos, comment_sets)
     risk_signals = extract_risk_signals(merged_videos, comment_sets)
     hooks = extract_hook_patterns(merged_videos)
-    content_strategy_ideas = build_content_strategy_ideas(pains, migration_signals, hooks)
-    operations_ideas = build_operations_ideas(pains, risk_signals, hooks)
+    if merged_videos:
+        content_strategy_ideas = build_content_strategy_ideas(pains, migration_signals, hooks)
+        operations_ideas = build_operations_ideas(pains, risk_signals, hooks)
+    else:
+        content_strategy_ideas = []
+        operations_ideas = []
     proof_assets = build_proof_assets(migration_signals, risk_signals, hooks)
     search_health = summarize_search_health(query_runs)
 
@@ -586,6 +673,7 @@ def main() -> None:
         snapshots_count=len(snapshots),
         comment_sets_count=len(comment_sets),
         search_health=search_health,
+        filter_accounting=filter_accounting,
     )
 
     out_path = Path(args.out) if args.out else REPORTS_DIR / f"weekly-report-{day_stamp()}-{time_slug()}.md"

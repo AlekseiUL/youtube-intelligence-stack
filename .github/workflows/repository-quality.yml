@@ -7,11 +7,15 @@ on:
 jobs:
   quality:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.10', '3.11', '3.12', '3.13']
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
         with:
-          python-version: '3.12'
+          python-version: ${{ matrix.python-version }}
       - name: Install package with dev extras
         run: python -m pip install -e ".[dev]"
       - name: Repository quality scan
@@ -27,10 +31,41 @@ jobs:
           test -f "$tmp/youtube-intel-smoke/watchlists/topics.yaml"
           test -f "$tmp/youtube-intel-smoke/watchlists/channels.yaml"
           grep -q "content hooks" "$tmp/youtube-intel-smoke/watchlists/topics.yaml"
-      - name: Offline report smoke
+      - name: Offline evidence report smoke
         run: |
           tmp=$(mktemp -d)
-          youtube-intel init "$tmp/youtube-intel-smoke"
-          youtube-intel search "$tmp/youtube-intel-smoke" --query "AI agents" --search-provider cache --skip-watchlist-channels --continue-on-search-error
-          youtube-intel report "$tmp/youtube-intel-smoke" --days 3650 --out "$tmp/youtube-intel-smoke/report.md"
-          test -s "$tmp/youtube-intel-smoke/report.md"
+          inst="$tmp/youtube-intel-smoke"
+          youtube-intel init "$inst"
+          mkdir -p "$inst/data/search/2026-01-01"
+          cat > "$inst/data/search/2026-01-01/search-fixture.json" <<'JSON'
+          {
+            "run_at": "2026-01-01T00:00:00+00:00",
+            "query_runs": [{"selected_provider": "fixture", "used_fallback": false, "entries": 1}],
+            "videos": [{
+              "query": "AI agents",
+              "video_id": "demo123",
+              "title": "How to build an AI agent workflow",
+              "video_url": "https://www.youtube.com/watch?v=demo123",
+              "channel_name": "Example Channel",
+              "published_at": "2026-01-01T00:00:00+00:00",
+              "views": 1000,
+              "comments_count": 5,
+              "description_snippet": "A practical workflow automation guide",
+              "source_provider": "fixture",
+              "collected_at": "2026-01-01T00:00:00+00:00"
+            }]
+          }
+          JSON
+          youtube-intel report "$inst" --days 3650 --out "$inst/report.md"
+          test -s "$inst/report.md"
+          grep -q "URL: https://www.youtube.com/watch?v=demo123" "$inst/report.md"
+          grep -q "Filter accounting" "$inst/report.md"
+      - name: Installed CLI works outside repo cwd
+        run: |
+          tmp=$(mktemp -d)
+          python -m venv "$tmp/venv"
+          "$tmp/venv/bin/python" -m pip install .
+          cd "$tmp"
+          "$tmp/venv/bin/youtube-intel" --version
+          "$tmp/venv/bin/youtube-intel" init "$tmp/outside-instance"
+          "$tmp/venv/bin/youtube-intel" doctor "$tmp/outside-instance" --json

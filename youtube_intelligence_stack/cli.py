@@ -32,7 +32,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("full", help="Run search, transcripts, comments, snapshots, then report.")
     p.add_argument("project_root", type=Path)
-    p.add_argument("args", nargs=argparse.REMAINDER, help="Extra args passed to the search layer.")
+    p.add_argument("args", nargs=argparse.REMAINDER, help="Extra args passed to the search layer. Use --safe for conservative timeouts and degraded-run behavior.")
     return parser
 
 
@@ -63,10 +63,22 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     if args.command == "full":
-        run_layer("search", args.project_root, args.args)
-        run_layer("transcripts", args.project_root, [])
-        run_layer("comments", args.project_root, [])
-        run_layer("snapshots", args.project_root, [])
+        safe_mode = "--safe" in args.args
+        search_args = [item for item in args.args if item != "--safe"]
+        if safe_mode:
+            if "--command-timeout-sec" not in search_args:
+                search_args.extend(["--command-timeout-sec", "30"])
+            if "--continue-on-search-error" not in search_args:
+                search_args.append("--continue-on-search-error")
+        run_layer("search", args.project_root, search_args)
+        if safe_mode:
+            run_layer("transcripts", args.project_root, ["--limit", "5", "--command-timeout-sec", "30", "--retry-count", "1"])
+            run_layer("comments", args.project_root, ["--limit", "5", "--command-timeout-sec", "30", "--retry-count", "1"])
+            run_layer("snapshots", args.project_root, ["--limit", "5", "--command-timeout-sec", "30"])
+        else:
+            run_layer("transcripts", args.project_root, [])
+            run_layer("comments", args.project_root, [])
+            run_layer("snapshots", args.project_root, [])
         run_layer("report", args.project_root, [])
         return
 

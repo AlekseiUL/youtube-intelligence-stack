@@ -37,11 +37,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--overwrite", action="store_true")
     parser.add_argument("--retry-count", type=int, default=2)
     parser.add_argument("--retry-backoff-ms", type=int, default=2500)
+    parser.add_argument("--command-timeout-sec", type=float, default=20.0)
     return parser.parse_args()
 
 
-def fetch_metadata(url: str) -> dict[str, Any]:
-    result = run_command([YT_DLP, "--dump-single-json", "--skip-download", url])
+def fetch_metadata(url: str, timeout_sec: float | None = None) -> dict[str, Any]:
+    result = run_command([YT_DLP, "--dump-single-json", "--skip-download", url], timeout_sec=timeout_sec)
     return json.loads(result.stdout)
 
 
@@ -72,13 +73,13 @@ def choose_language(meta: dict[str, Any], preferred: list[str]) -> tuple[str | N
     return None, False
 
 
-def download_subtitle(url: str, video_id: str, lang: str, is_generated: bool) -> Path | None:
+def download_subtitle(url: str, video_id: str, lang: str, is_generated: bool, timeout_sec: float | None = None) -> Path | None:
     with tempfile.TemporaryDirectory(prefix="yt-transcripts-") as tmpdir:
         output_template = str(Path(tmpdir) / "%(id)s.%(ext)s")
         args = [YT_DLP, "--skip-download", "--sub-langs", lang, "--sub-format", "vtt", "-o", output_template]
         args.append("--write-auto-subs" if is_generated else "--write-subs")
         args.append(url)
-        run_command(args)
+        run_command(args, timeout_sec=timeout_sec)
         temp_path = Path(tmpdir)
         candidates = sorted(temp_path.glob(f"{video_id}*.vtt"))
         if not candidates:
@@ -132,7 +133,7 @@ def main() -> None:
         meta: dict[str, Any] = {}
         metadata_error = None
         try:
-            meta = fetch_metadata(url)
+            meta = fetch_metadata(url, timeout_sec=args.command_timeout_sec)
         except Exception as exc:
             metadata_error = str(exc)
 
@@ -158,7 +159,7 @@ def main() -> None:
             if language:
                 for attempt_no in range(1, args.retry_count + 2):
                     try:
-                        raw_path = download_subtitle(url, video_id, language, is_generated)
+                        raw_path = download_subtitle(url, video_id, language, is_generated, timeout_sec=args.command_timeout_sec)
                         error = None
                         break
                     except Exception as exc:

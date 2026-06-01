@@ -158,6 +158,23 @@ def fetch_query_with_fallbacks(
                 # Timeout on entry search should fail fast into the next fallback,
                 # not spend more wall-clock time retrying a stuck provider.
                 break
+            except json.JSONDecodeError as exc:
+                print(
+                    f"[yt-search] query='{query}' provider={provider} status=parse_error",
+                    file=sys.stderr,
+                    flush=True,
+                )
+                attempts.append({
+                    "provider": provider,
+                    "status": "parse_error",
+                    "entries": 0,
+                    "attempt": attempt_no,
+                    "error": str(exc)[-500:],
+                })
+                if attempt_no <= retry_count:
+                    sleep_ms(retry_backoff_ms * attempt_no)
+                else:
+                    break
             except subprocess.CalledProcessError as exc:
                 stderr = (exc.stderr or exc.stdout or str(exc)).strip()
                 print(
@@ -217,21 +234,30 @@ def load_queries(args: argparse.Namespace) -> list[str]:
     return deduped
 
 
-def passes_video_filters(record: dict[str, Any], *, max_age_days: int | None = None, min_views: int = 0, min_comments: int = 0) -> bool:
+def video_filter_reason(record: dict[str, Any], *, max_age_days: int | None = None, min_views: int = 0, min_comments: int = 0) -> str | None:
     if safe_int(record.get("views")) < min_views:
-        return False
+        return "removed_by_min_views"
     if safe_int(record.get("comments_count")) < min_comments:
-        return False
+        return "removed_by_min_comments"
     if max_age_days is not None:
         published = iso_to_datetime(record.get("published_at"))
         if published is None:
-            return False
+            return "removed_by_missing_publication_date"
         if published.tzinfo is None:
             published = published.replace(tzinfo=now_utc().tzinfo)
         age_days = max((now_utc() - published).days, 0)
         if age_days > max_age_days:
-            return False
-    return True
+            return "removed_by_age"
+    return None
+
+
+def passes_video_filters(record: dict[str, Any], *, max_age_days: int | None = None, min_views: int = 0, min_comments: int = 0) -> bool:
+    return video_filter_reason(
+        record,
+        max_age_days=max_age_days,
+        min_views=min_views,
+        min_comments=min_comments,
+    ) is None
 
 
 def aggregate_channels(videos: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -283,6 +309,15 @@ def main() -> None:
     seen_ids: set[str] = set()
     search_errors = 0
 
+    filter_accounting = {
+        "candidates_before_filters": 0,
+        "kept": 0,
+        "removed_by_age": 0,
+        "removed_by_missing_publication_date": 0,
+        "removed_by_min_views": 0,
+        "removed_by_min_comments": 0,
+    }
+
     for index, query in enumerate(queries, start=1):
         print(
             f"[yt-search] start query {index}/{len(queries)}: {query}",
@@ -320,14 +355,20 @@ def main() -> None:
                 source_provider=meta.get("provider") or "none",
             )
             key = record.get("video_id") or record.get("video_url")
-            if key and key not in seen_ids and passes_video_filters(
+            filter_accounting["candidates_before_filters"] += 1
+            reason = video_filter_reason(
                 record,
                 max_age_days=max_age_days,
                 min_views=args.min_views,
                 min_comments=args.min_comments,
-            ):
+            )
+            if reason:
+                filter_accounting[reason] += 1
+                continue
+            if key and key not in seen_ids:
                 videos.append(record)
                 seen_ids.add(key)
+                filter_accounting["kept"] += 1
         if index < len(queries) and meta.get("provider") not in {"cache", None}:
             sleep_ms(args.sleep_between_queries_ms)
 
@@ -392,14 +433,20 @@ def main() -> None:
             record["watchlist_layer"] = channel["layer"]
             record["watchlist_tags"] = channel.get("tags") or []
             key = record.get("video_id") or record.get("video_url")
-            if key and key not in seen_ids and passes_video_filters(
+            filter_accounting["candidates_before_filters"] += 1
+            reason = video_filter_reason(
                 record,
                 max_age_days=max_age_days,
                 min_views=args.min_views,
                 min_comments=args.min_comments,
-            ):
+            )
+            if reason:
+                filter_accounting[reason] += 1
+                continue
+            if key and key not in seen_ids:
                 videos.append(record)
                 seen_ids.add(key)
+                filter_accounting["kept"] += 1
         if index < len(watchlist_channels):
             sleep_ms(args.sleep_between_channels_ms)
 
@@ -417,6 +464,7 @@ def main() -> None:
             "min_views": args.min_views,
             "min_comments": args.min_comments,
         },
+        "filter_accounting": filter_accounting,
         "notes": [
             "v1.1 search uses provider fallback plus cached-query rescue path",
             "entry search now fails fast on stuck yt-dlp calls and records timeout markers",
@@ -444,6 +492,7 @@ def main() -> None:
         "queries": queries,
         "watchlist_channels": len(watchlist_channels),
         "query_runs": query_runs,
+        "filter_accounting": filter_accounting,
     }, ensure_ascii=False, indent=2))
 
 

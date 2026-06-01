@@ -59,6 +59,27 @@ def test_doctor_passes_for_initialized_instance(tmp_path: Path) -> None:
     assert payload["project_root"]["channels"] is True
 
 
+def test_full_safe_mode_passes_conservative_layer_args(monkeypatch, tmp_path: Path) -> None:
+    from youtube_intelligence_stack import cli
+
+    calls = []
+
+    def fake_run_layer(command, project_root, extra_args):
+        calls.append((command, Path(project_root), list(extra_args)))
+
+    monkeypatch.setattr(cli, "run_layer", fake_run_layer)
+
+    cli.main(["full", str(tmp_path), "--safe", "--query", "AI agents", "--skip-watchlist-channels"])
+
+    assert [item[0] for item in calls] == ["search", "transcripts", "comments", "snapshots", "report"]
+    assert "--safe" not in calls[0][2]
+    assert "--continue-on-search-error" in calls[0][2]
+    assert "--command-timeout-sec" in calls[0][2]
+    assert "--command-timeout-sec" in calls[1][2]
+    assert "--command-timeout-sec" in calls[2][2]
+    assert "--command-timeout-sec" in calls[3][2]
+
+
 def test_init_creates_public_safe_instance(tmp_path: Path) -> None:
     target = tmp_path / "instance"
 
