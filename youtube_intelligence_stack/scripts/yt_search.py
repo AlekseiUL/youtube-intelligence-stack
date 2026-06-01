@@ -19,8 +19,11 @@ from common import (
     load_previous_query_results,
     load_yaml,
     normalize_video_record,
+    iso_to_datetime,
+    now_utc,
     now_iso,
     run_command,
+    safe_int,
     sleep_ms,
     time_slug,
     write_json,
@@ -48,6 +51,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--sleep-between-queries-ms", type=int, default=1800)
     parser.add_argument("--sleep-between-channels-ms", type=int, default=1200)
     parser.add_argument("--continue-on-search-error", action="store_true")
+    parser.add_argument("--max-age-days", type=int, help="Keep only videos published within this many days when publication date is known")
+    parser.add_argument("--fresh-only", action="store_true", help="Shortcut for --max-age-days 7")
+    parser.add_argument("--min-views", type=int, default=0, help="Keep only videos with at least this many views")
+    parser.add_argument("--min-comments", type=int, default=0, help="Keep only videos with at least this many comments")
     return parser.parse_args()
 
 
@@ -210,6 +217,23 @@ def load_queries(args: argparse.Namespace) -> list[str]:
     return deduped
 
 
+def passes_video_filters(record: dict[str, Any], *, max_age_days: int | None = None, min_views: int = 0, min_comments: int = 0) -> bool:
+    if safe_int(record.get("views")) < min_views:
+        return False
+    if safe_int(record.get("comments_count")) < min_comments:
+        return False
+    if max_age_days is not None:
+        published = iso_to_datetime(record.get("published_at"))
+        if published is None:
+            return False
+        if published.tzinfo is None:
+            published = published.replace(tzinfo=now_utc().tzinfo)
+        age_days = max((now_utc() - published).days, 0)
+        if age_days > max_age_days:
+            return False
+    return True
+
+
 def aggregate_channels(videos: list[dict[str, Any]]) -> list[dict[str, Any]]:
     buckets: dict[tuple[str, str], dict[str, Any]] = {}
     for row in videos:
@@ -242,6 +266,7 @@ def main() -> None:
     ensure_project_dirs()
     args = parse_args()
     queries = load_queries(args)
+    max_age_days = 7 if args.fresh_only else args.max_age_days
     watchlist_channels = [] if args.skip_watchlist_channels else load_channel_watchlist(args.channels_file)
     provider_chain = [args.search_provider, *[item for item in args.fallback_provider if item != args.search_provider]]
     if "cache" not in provider_chain:
@@ -295,7 +320,12 @@ def main() -> None:
                 source_provider=meta.get("provider") or "none",
             )
             key = record.get("video_id") or record.get("video_url")
-            if key and key not in seen_ids:
+            if key and key not in seen_ids and passes_video_filters(
+                record,
+                max_age_days=max_age_days,
+                min_views=args.min_views,
+                min_comments=args.min_comments,
+            ):
                 videos.append(record)
                 seen_ids.add(key)
         if index < len(queries) and meta.get("provider") not in {"cache", None}:
@@ -362,7 +392,12 @@ def main() -> None:
             record["watchlist_layer"] = channel["layer"]
             record["watchlist_tags"] = channel.get("tags") or []
             key = record.get("video_id") or record.get("video_url")
-            if key and key not in seen_ids:
+            if key and key not in seen_ids and passes_video_filters(
+                record,
+                max_age_days=max_age_days,
+                min_views=args.min_views,
+                min_comments=args.min_comments,
+            ):
                 videos.append(record)
                 seen_ids.add(key)
         if index < len(watchlist_channels):
@@ -377,7 +412,11 @@ def main() -> None:
         "videos_count": len(videos),
         "derived_channels_count": len(derived_channels),
         "search_provider": args.search_provider,
-        "fallback_providers": [item for item in provider_chain if item != args.search_provider],
+        "filters": {
+            "max_age_days": max_age_days,
+            "min_views": args.min_views,
+            "min_comments": args.min_comments,
+        },
         "notes": [
             "v1.1 search uses provider fallback plus cached-query rescue path",
             "entry search now fails fast on stuck yt-dlp calls and records timeout markers",

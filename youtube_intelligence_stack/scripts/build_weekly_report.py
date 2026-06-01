@@ -65,6 +65,10 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build weekly markdown intelligence report from local YouTube artifacts.")
     parser.add_argument("--days", type=int, default=7)
     parser.add_argument("--out", help="Output markdown path")
+    parser.add_argument("--max-age-days", type=int, help="Keep only videos published within this many days when publication date is known")
+    parser.add_argument("--fresh-only", action="store_true", help="Shortcut for --max-age-days equal to --days")
+    parser.add_argument("--min-views", type=int, default=0)
+    parser.add_argument("--min-comments", type=int, default=0)
     return parser.parse_args()
 
 
@@ -105,10 +109,28 @@ def load_recent_transcripts(cutoff) -> dict[str, dict[str, Any]]:
     return items
 
 
+def report_video_passes_filters(row: dict[str, Any], *, max_age_days: int | None, min_views: int, min_comments: int) -> bool:
+    if safe_int(row.get("views")) < min_views:
+        return False
+    if safe_int(row.get("comments_count")) < min_comments:
+        return False
+    if max_age_days is not None:
+        published = iso_to_datetime(row.get("published_at"))
+        if not published:
+            return False
+        if published.tzinfo is None:
+            published = published.replace(tzinfo=now_utc().tzinfo)
+        if max((now_utc() - published).days, 0) > max_age_days:
+            return False
+    return True
+
+
 def days_since(value: str | None) -> int | None:
     dt = iso_to_datetime(value)
     if not dt:
         return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=now_utc().tzinfo)
     return max((now_utc() - dt).days, 0)
 
 
@@ -386,9 +408,9 @@ def build_content_strategy_ideas(pains, migration_signals, hooks):
         ideas.append(f"Create a practical content asset around '{label}': show how to avoid that pain and where the market is breaking.")
     if hooks:
         ideas.append(f"Use the '{hooks[0]['label']}', format because the pattern is already attracting audience attention.")
-    while len(ideas) < 3:
-        ideas.append("Run a weekly YouTube market radar: 5 videos, 3 pains, 2 replacement signals, 1 next action.")
-    return ideas[:3]
+    if not ideas:
+        return ["Insufficient evidence: collect more videos/comments before recommending content actions."]
+    return list(dict.fromkeys(ideas))[:3]
 
 
 def build_operations_ideas(pains, risk_signals, hooks):
@@ -399,9 +421,9 @@ def build_operations_ideas(pains, risk_signals, hooks):
         ideas.append("Create a platform-risk brief: what breaks, where vendor lock-in appears, and how to design fallback chains.")
     if hooks:
         ideas.append(f"Use the '{hooks[0]['label']}' format for education: less abstraction, more operational walkthrough.")
-    while len(ideas) < 3:
-        ideas.append("Create a series about memory, orchestration, and human-in-the-loop as an operating layer over AI-market chaos.")
-    return ideas[:3]
+    if not ideas:
+        return ["Insufficient evidence: collect more videos/comments before recommending workflow actions."]
+    return list(dict.fromkeys(ideas))[:3]
 
 
 def build_proof_assets(migration_signals, risks, hooks):
@@ -448,13 +470,16 @@ def render_report(*, days: int, generated_at: str, top_videos, pains, migration_
     lines.append("This run is not just a video list. It is a market-signal pass: repeated pains, narrative patterns, replacement language, and useful evidence for your content, product, or operating workflow.\n")
 
     lines.append("## 1. Top videos by signal")
-    for row in top_videos[:10]:
-        c = row.get("score_components") or {}
-        lines.append(
-            f"- **{row.get('title') or 'Untitled'}** | score: {row.get('signal_score')} | "
-            f"relevance={c.get('topical_relevance')} freshness={c.get('freshness')} intensity={c.get('signal_intensity')} repeatability={c.get('repeatability')} usefulness={c.get('usefulness')} | "
-            f"queries: {', '.join(row.get('queries') or [])}"
-        )
+    if top_videos:
+        for row in top_videos[:10]:
+            c = row.get("score_components") or {}
+            lines.append(
+                f"- **{row.get('title') or 'Untitled'}** | score: {row.get('signal_score')} | "
+                f"relevance={c.get('topical_relevance')} freshness={c.get('freshness')} intensity={c.get('signal_intensity')} repeatability={c.get('repeatability')} usefulness={c.get('usefulness')} | "
+                f"queries: {', '.join(row.get('queries') or [])}"
+            )
+    else:
+        lines.append("- No surfaced videos after filters. Treat this report as insufficient evidence, not an insight.")
     lines.append("")
 
     lines.append("## 2. Top repeated pains from comments")
@@ -526,7 +551,16 @@ def main() -> None:
     comment_sets = load_recent_comment_sets(cutoff)
     transcripts = load_recent_transcripts(cutoff)
 
-    merged_videos = merge_video_signals(search_rows, snapshots, comment_sets, transcripts)
+    max_age_days = args.days if args.fresh_only else args.max_age_days
+    merged_videos = [
+        row for row in merge_video_signals(search_rows, snapshots, comment_sets, transcripts)
+        if report_video_passes_filters(
+            row,
+            max_age_days=max_age_days,
+            min_views=args.min_views,
+            min_comments=args.min_comments,
+        )
+    ]
     pains = extract_pains(comment_sets)
     migration_signals = extract_migration_signals(merged_videos, comment_sets)
     risk_signals = extract_risk_signals(merged_videos, comment_sets)

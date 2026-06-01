@@ -1,6 +1,8 @@
 # YouTube Intelligence Stack
 
-Installable local-first CLI for YouTube public-source intelligence: search public videos, collect transcripts/comments/metrics where available, and turn the evidence into weekly Markdown reports.
+Installable local-first CLI for YouTube public-source research: search public videos, collect transcripts/comments/metrics where available, and turn the evidence into weekly Markdown signal reports.
+
+It is a collector plus deterministic report builder. It does not claim full autonomous intelligence, LLM synthesis, source-confidence scoring, or guaranteed YouTube coverage.
 
 This repository is designed as a clean public product: no private watchlists, no cron jobs, no operator data, no API keys, and no generated evidence committed to Git.
 
@@ -54,9 +56,9 @@ Main capabilities:
 python3 -m pip install "git+https://github.com/AlekseiUL/youtube-intelligence-stack.git"
 youtube-intel doctor
 youtube-intel init ~/youtube-intel-demo --template creator
-youtube-intel search ~/youtube-intel-demo --query "AI agents" --limit-per-query 3 --skip-watchlist-channels
+youtube-intel search ~/youtube-intel-demo --query "AI agents" --limit-per-query 3 --skip-watchlist-channels --fresh-only
 youtube-intel snapshots ~/youtube-intel-demo --limit 3
-youtube-intel report ~/youtube-intel-demo
+youtube-intel report ~/youtube-intel-demo --fresh-only
 ```
 
 ### Option B — run from checkout
@@ -120,6 +122,17 @@ youtube-intel report <project-root> [report args]
 youtube-intel full <project-root> [search args]
 ```
 
+Useful filtering flags for weekly/fresh-signal workflows:
+
+```bash
+youtube-intel search ~/youtube-intel-demo --query "AI agents" --fresh-only --min-views 100 --min-comments 5
+youtube-intel report ~/youtube-intel-demo --max-age-days 7 --min-views 100
+```
+
+- `--fresh-only` keeps recently published videos only (`7` days for search, current `--days` window for report).
+- `--max-age-days N` keeps only videos with a known publication date within `N` days.
+- `--min-views` and `--min-comments` filter weak/empty results before reports.
+
 Legacy checkout syntax still works:
 
 ```bash
@@ -135,10 +148,11 @@ youtube-intel search ~/youtube-intel-demo \
   --limit-per-query 3 \
   --skip-watchlist-channels \
   --command-timeout-sec 30 \
-  --continue-on-search-error
+  --continue-on-search-error \
+  --fresh-only
 
 youtube-intel snapshots ~/youtube-intel-demo --limit 3
-youtube-intel report ~/youtube-intel-demo
+youtube-intel report ~/youtube-intel-demo --fresh-only
 ```
 
 Reports are written under:
@@ -146,6 +160,16 @@ Reports are written under:
 ```text
 ~/youtube-intel-demo/data/reports/
 ```
+
+## Known limitations
+
+This is a best-effort research CLI, not a guaranteed data product.
+
+- YouTube and `yt-dlp` can break or change behavior because of rate limits, `403`/`429` responses, region differences, extractor changes, removed videos, age gates, or metadata availability.
+- Transcripts depend on subtitles being available to `yt-dlp`; comments depend on YouTube exposing them to the extractor.
+- `--fresh-only` and `--max-age-days` require a known publication date; videos with missing dates are excluded in those modes.
+- The report builder is deterministic. It does not perform LLM synthesis, confidence scoring, or source credibility assessment.
+- Small samples are explicitly treated as insufficient evidence; collect more videos/comments before treating output as insight.
 
 ## Data safety
 
@@ -211,9 +235,9 @@ MIT. See [`LICENSE`](LICENSE).
 python3 -m pip install "git+https://github.com/AlekseiUL/youtube-intelligence-stack.git"
 youtube-intel doctor
 youtube-intel init ~/youtube-intel-demo --template creator
-youtube-intel search ~/youtube-intel-demo --query "AI agents" --limit-per-query 3 --skip-watchlist-channels
+youtube-intel search ~/youtube-intel-demo --query "AI agents" --limit-per-query 3 --skip-watchlist-channels --fresh-only
 youtube-intel snapshots ~/youtube-intel-demo --limit 3
-youtube-intel report ~/youtube-intel-demo
+youtube-intel report ~/youtube-intel-demo --fresh-only
 ```
 
 Сгенерированные данные лежат в project instance, а не в кодовом repo. Это специально: так безопаснее публиковать код и не таскать за собой приватную исследовательскую историю.
