@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 from . import __version__
@@ -36,6 +38,20 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def strip_wrapper_flags(extra_args: list[str]) -> list[str]:
+    return [item for item in extra_args if item != "--json"]
+
+
+def run_layer_clean(command: str, project_root: Path, extra_args: list[str]) -> None:
+    try:
+        run_layer(command, project_root, strip_wrapper_flags(extra_args))
+    except subprocess.CalledProcessError as exc:
+        message = (exc.stderr or exc.stdout or "").strip()
+        if message:
+            print(message, file=sys.stderr)
+        raise SystemExit(exc.returncode or 1) from None
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -64,26 +80,26 @@ def main(argv: list[str] | None = None) -> None:
 
     if args.command == "full":
         safe_mode = "--safe" in args.args
-        search_args = [item for item in args.args if item != "--safe"]
+        search_args = strip_wrapper_flags([item for item in args.args if item != "--safe"])
         if safe_mode:
             if "--command-timeout-sec" not in search_args:
                 search_args.extend(["--command-timeout-sec", "30"])
             if "--continue-on-search-error" not in search_args:
                 search_args.append("--continue-on-search-error")
-        run_layer("search", args.project_root, search_args)
+        run_layer_clean("search", args.project_root, search_args)
         if safe_mode:
-            run_layer("transcripts", args.project_root, ["--limit", "5", "--command-timeout-sec", "30", "--retry-count", "1"])
-            run_layer("comments", args.project_root, ["--limit", "5", "--command-timeout-sec", "30", "--retry-count", "1"])
-            run_layer("snapshots", args.project_root, ["--limit", "5", "--command-timeout-sec", "30"])
+            run_layer_clean("transcripts", args.project_root, ["--limit", "5", "--command-timeout-sec", "30", "--retry-count", "1"])
+            run_layer_clean("comments", args.project_root, ["--limit", "5", "--command-timeout-sec", "30", "--retry-count", "1"])
+            run_layer_clean("snapshots", args.project_root, ["--limit", "5", "--command-timeout-sec", "30"])
         else:
-            run_layer("transcripts", args.project_root, [])
-            run_layer("comments", args.project_root, [])
-            run_layer("snapshots", args.project_root, [])
-        run_layer("report", args.project_root, [])
+            run_layer_clean("transcripts", args.project_root, [])
+            run_layer_clean("comments", args.project_root, [])
+            run_layer_clean("snapshots", args.project_root, [])
+        run_layer_clean("report", args.project_root, [])
         return
 
     if args.command in SCRIPT_MAP:
-        run_layer(args.command, args.project_root, args.args)
+        run_layer_clean(args.command, args.project_root, args.args)
         return
 
     raise SystemExit(f"Unknown command: {args.command}")

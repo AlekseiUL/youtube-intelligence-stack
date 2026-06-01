@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.4.1 — CLI polish and timeout semantics
+
+- Classified YouTube comment collection timeouts as `status: "timeout"` instead of generic `error`.
+- Accepted wrapper-level `--json` on layer commands without forwarding it to underlying scripts.
+- Replaced Python traceback output for layer argument/runtime failures with clean stderr and the underlying exit code.
+- Promoted `youtube-intel full --safe` as the recommended first end-to-end smoke command.
+- Added regression tests for comment timeout status, layer `--json` tolerance, and clean wrapper error handling.
+
 ## v0.4.0 — UX and robustness hardening
 
 - Removed strict `--fresh-only` from the public quick start so first runs are less likely to produce an empty report.

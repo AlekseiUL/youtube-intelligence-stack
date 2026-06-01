@@ -76,18 +76,27 @@ def fetch_comments_with_retries(
     *,
     retry_count: int,
     retry_backoff_ms: int,
-) -> tuple[dict[str, Any], str | None]:
+) -> tuple[dict[str, Any], str | None, str | None]:
     last_error: str | None = None
+    last_status: str | None = None
     for attempt_no in range(1, retry_count + 2):
         try:
-            return fetch_comments(url, sort_mode, timeout_sec), None
-        except Exception as exc:
+            return fetch_comments(url, sort_mode, timeout_sec), None, None
+        except subprocess.TimeoutExpired as exc:
             last_error = str(exc)
+            last_status = "timeout"
             if attempt_no <= retry_count:
                 sleep_ms(retry_backoff_ms * attempt_no)
             else:
                 break
-    return {}, last_error
+        except Exception as exc:
+            last_error = str(exc)
+            last_status = "error"
+            if attempt_no <= retry_count:
+                sleep_ms(retry_backoff_ms * attempt_no)
+            else:
+                break
+    return {}, last_error, last_status
 
 
 def get_thread_fields(comment_id: str | None, parent: str | None) -> tuple[str | None, str | None, bool]:
@@ -184,6 +193,7 @@ def main() -> None:
         payloads: dict[str, dict[str, Any]] = {}
         rows_by_sort: dict[str, list[dict[str, Any]]] = {}
         errors: dict[str, str] = {}
+        sort_statuses: dict[str, str] = {}
 
         for sort_mode in sort_modes:
             print(
@@ -192,7 +202,7 @@ def main() -> None:
                 flush=True,
             )
             try:
-                payload, retry_error = fetch_comments_with_retries(
+                payload, retry_error, retry_status = fetch_comments_with_retries(
                     url,
                     sort_mode,
                     args.command_timeout_sec,
@@ -201,6 +211,8 @@ def main() -> None:
                 )
                 if retry_error:
                     errors[sort_mode] = retry_error
+                    if retry_status:
+                        sort_statuses[sort_mode] = retry_status
                 payloads[sort_mode] = payload
                 rows_by_sort[sort_mode] = normalize_comments(payload, sort_mode, collected_at) if payload else []
                 print(
@@ -228,7 +240,7 @@ def main() -> None:
         payload = next((value for value in payloads.values() if value), {})
         if not payload:
             status = "missing_infojson"
-            if errors and all(str(value).startswith("timeout>") for value in errors.values()):
+            if sort_statuses and all(value == "timeout" for value in sort_statuses.values()) and len(sort_statuses) == len(sort_modes):
                 status = "timeout"
             elif errors:
                 status = "error"
@@ -241,6 +253,7 @@ def main() -> None:
                 "sort_modes": sort_modes,
                 "status": status,
                 "errors": errors,
+                "per_sort_status": sort_statuses,
                 "source": "yt_dlp_comments",
             }
             out_dir.mkdir(parents=True, exist_ok=True)

@@ -212,8 +212,9 @@ def test_comments_fetch_retries_after_transient_error(monkeypatch, tmp_path: Pat
     monkeypatch.setattr(yt_comments, "fetch_comments", fake_fetch)
     monkeypatch.setattr(yt_comments, "sleep_ms", lambda value: None)
 
-    payload, error = yt_comments.fetch_comments_with_retries("https://youtu.be/abc", "top", 1.0, retry_count=1, retry_backoff_ms=1)
+    payload, error, status = yt_comments.fetch_comments_with_retries("https://youtu.be/abc", "top", 1.0, retry_count=1, retry_backoff_ms=1)
 
     assert payload["id"] == "abc"
     assert error is None
+    assert status is None
     assert calls["count"] == 2

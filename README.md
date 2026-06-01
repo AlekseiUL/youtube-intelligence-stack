@@ -50,15 +50,15 @@ Main capabilities:
 
 ## Quick start
 
+The recommended first end-to-end smoke is `full --safe`: it uses conservative timeouts and continues through partial YouTube/yt-dlp failures.
+
 ### Option A — install as a CLI from GitHub
 
 ```bash
 python3 -m pip install "git+https://github.com/AlekseiUL/youtube-intelligence-stack.git"
 youtube-intel doctor
 youtube-intel init ~/youtube-intel-demo --template creator
-youtube-intel search ~/youtube-intel-demo --query "AI agents" --limit-per-query 3 --skip-watchlist-channels
-youtube-intel snapshots ~/youtube-intel-demo --limit 3
-youtube-intel report ~/youtube-intel-demo
+youtube-intel full ~/youtube-intel-demo --safe --query "AI agents" --limit-per-query 3 --skip-watchlist-channels
 ```
 
 ### Option B — run from checkout
@@ -243,9 +243,7 @@ MIT. See [`LICENSE`](LICENSE).
 python3 -m pip install "git+https://github.com/AlekseiUL/youtube-intelligence-stack.git"
 youtube-intel doctor
 youtube-intel init ~/youtube-intel-demo --template creator
-youtube-intel search ~/youtube-intel-demo --query "AI agents" --limit-per-query 3 --skip-watchlist-channels
-youtube-intel snapshots ~/youtube-intel-demo --limit 3
-youtube-intel report ~/youtube-intel-demo
+youtube-intel full ~/youtube-intel-demo --safe --query "AI agents" --limit-per-query 3 --skip-watchlist-channels
 ```
 
 Сгенерированные данные лежат в project instance, а не в кодовом repo. Это специально: так безопаснее публиковать код и не таскать за собой приватную исследовательскую историю.
