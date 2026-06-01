@@ -1,6 +1,6 @@
 # YouTube Intelligence Stack
 
-Local-first YouTube intelligence pipeline for public-source research: search public videos, collect transcripts/comments/metrics where available, and turn the evidence into weekly Markdown reports.
+Installable local-first CLI for YouTube public-source intelligence: search public videos, collect transcripts/comments/metrics where available, and turn the evidence into weekly Markdown reports.
 
 This repository is designed as a clean public product: no private watchlists, no cron jobs, no operator data, no API keys, and no generated evidence committed to Git.
 
@@ -24,8 +24,8 @@ It is not:
 
 ```mermaid
 flowchart LR
-    A[Watchlists: topics/channels] --> B[Search public YouTube]
-    B --> C[Collect metadata]
+    A[Watchlists: topics/channels] --> B[youtube-intel search]
+    B --> C[Metadata bundles]
     C --> D[Optional transcripts/comments]
     C --> E[Metric snapshots]
     D --> F[Weekly Markdown report]
@@ -34,6 +34,9 @@ flowchart LR
 
 Main capabilities:
 
+- installable `youtube-intel` CLI;
+- `doctor` environment check;
+- clean project instances outside the code repo;
 - topic-based YouTube search;
 - channel watchlists;
 - fallback/retry/throttle behavior around `yt-dlp`;
@@ -41,32 +44,45 @@ Main capabilities:
 - comment collection when YouTube exposes comments to `yt-dlp`;
 - metric snapshots over time;
 - weekly Markdown report with pains, migration/replacement signals, platform-risk signals, hooks, and next-action ideas;
-- instance-based design: code lives in the repo, your research data lives in a separate project folder.
+- public-safe templates: `general`, `creator`, `competitor`, `ai-tools`.
 
 ## Quick start
 
-### 1. Install
+### Option A — install as a CLI from GitHub
+
+```bash
+python3 -m pip install "git+https://github.com/AlekseiUL/youtube-intelligence-stack.git"
+youtube-intel doctor
+youtube-intel init ~/youtube-intel-demo --template creator
+youtube-intel search ~/youtube-intel-demo --query "AI agents" --limit-per-query 3 --skip-watchlist-channels
+youtube-intel snapshots ~/youtube-intel-demo --limit 3
+youtube-intel report ~/youtube-intel-demo
+```
+
+### Option B — run from checkout
 
 ```bash
 git clone https://github.com/AlekseiUL/youtube-intelligence-stack.git
 cd youtube-intelligence-stack
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -r requirements.txt
+python -m pip install -e ".[dev]"
+youtube-intel doctor
+youtube-intel init ~/youtube-intel-demo --template creator
 ```
 
-You also need a working `yt-dlp` command. Installing from `requirements.txt` usually provides it. You can verify:
+You also need a working `yt-dlp` command. Installing the package normally provides it. Verify:
 
 ```bash
 yt-dlp --version
 ```
 
-### 2. Create a clean research instance
+## Project instances
 
 Keep generated evidence outside the code repo:
 
 ```bash
-python run.py init-instance --project-root ~/youtube-intel-demo
+youtube-intel init ~/youtube-intel-demo --template creator
 ```
 
 This creates:
@@ -83,19 +99,46 @@ This creates:
 
 Edit `watchlists/topics.yaml` and `watchlists/channels.yaml` for your niche.
 
-### 3. Run a tiny public smoke
+Templates:
+
+- `general` — broad public-source market radar;
+- `creator` — hooks, audience pains, content formats;
+- `competitor` — alternatives, switching, pricing complaints, platform risk;
+- `ai-tools` — AI agent/tooling research.
+
+## CLI commands
 
 ```bash
-python run.py search \
-  --project-root ~/youtube-intel-demo \
+youtube-intel --help
+youtube-intel doctor [project-root]
+youtube-intel init <project-root> [--template creator|competitor|ai-tools|general]
+youtube-intel search <project-root> [search args]
+youtube-intel transcripts <project-root> [transcript args]
+youtube-intel comments <project-root> [comment args]
+youtube-intel snapshots <project-root> [snapshot args]
+youtube-intel report <project-root> [report args]
+youtube-intel full <project-root> [search args]
+```
+
+Legacy checkout syntax still works:
+
+```bash
+python run.py init-instance --project-root ~/youtube-intel-demo
+python run.py search --project-root ~/youtube-intel-demo --query "AI agents"
+```
+
+## Tiny public smoke
+
+```bash
+youtube-intel search ~/youtube-intel-demo \
   --query "AI agents" \
   --limit-per-query 3 \
   --skip-watchlist-channels \
   --command-timeout-sec 30 \
   --continue-on-search-error
 
-python run.py snapshots --project-root ~/youtube-intel-demo --limit 3
-python run.py report --project-root ~/youtube-intel-demo
+youtube-intel snapshots ~/youtube-intel-demo --limit 3
+youtube-intel report ~/youtube-intel-demo
 ```
 
 Reports are written under:
@@ -103,22 +146,6 @@ Reports are written under:
 ```text
 ~/youtube-intel-demo/data/reports/
 ```
-
-## CLI
-
-```bash
-python run.py --help
-```
-
-Commands:
-
-- `init-instance` — create a clean project instance with watchlist templates;
-- `search` — search topics/channels and write search bundles;
-- `transcripts` — collect subtitles/transcripts for surfaced videos;
-- `comments` — collect comments for surfaced videos;
-- `snapshots` — capture public metadata/metrics snapshots;
-- `report` — build a weekly Markdown intelligence report;
-- `full` — run a bounded end-to-end pipeline.
 
 ## Data safety
 
@@ -131,6 +158,15 @@ This repo intentionally excludes:
 - generated transcripts/comments/snapshots/reports;
 - cookies, browser state, API keys, `.env` files;
 - internal workspace paths or operator notes.
+
+## Development checks
+
+```bash
+python -m pip install -e ".[dev]"
+python scripts/repository_quality.py
+python -m pytest -q
+youtube-intel doctor
+```
 
 ## Example output
 
@@ -158,7 +194,7 @@ MIT. See [`LICENSE`](LICENSE).
 
 # YouTube Intelligence Stack — RU
 
-Локальный pipeline для YouTube-разведки по публичным источникам: ищет ролики, собирает metadata/transcripts/comments/snapshots и превращает это в weekly Markdown report.
+Устанавливаемый локальный CLI для YouTube-разведки по публичным источникам: ищет ролики, собирает metadata/transcripts/comments/snapshots и превращает это в weekly Markdown report.
 
 Главное: это **чистая публичная версия**. В репозитории нет личных watchlist'ов, кронов, API-ключей, приватных путей и сгенерированных данных.
 
@@ -172,15 +208,12 @@ MIT. See [`LICENSE`](LICENSE).
 ## Быстрый старт
 
 ```bash
-git clone https://github.com/AlekseiUL/youtube-intelligence-stack.git
-cd youtube-intelligence-stack
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-python run.py init-instance --project-root ~/youtube-intel-demo
-python run.py search --project-root ~/youtube-intel-demo --query "AI agents" --limit-per-query 3 --skip-watchlist-channels
-python run.py snapshots --project-root ~/youtube-intel-demo --limit 3
-python run.py report --project-root ~/youtube-intel-demo
+python3 -m pip install "git+https://github.com/AlekseiUL/youtube-intelligence-stack.git"
+youtube-intel doctor
+youtube-intel init ~/youtube-intel-demo --template creator
+youtube-intel search ~/youtube-intel-demo --query "AI agents" --limit-per-query 3 --skip-watchlist-channels
+youtube-intel snapshots ~/youtube-intel-demo --limit 3
+youtube-intel report ~/youtube-intel-demo
 ```
 
 Сгенерированные данные лежат в project instance, а не в кодовом repo. Это специально: так безопаснее публиковать код и не таскать за собой приватную исследовательскую историю.

@@ -1,6 +1,10 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "youtube-intelligence-stack"
-version = "0.1.0"
+version = "0.2.0"
 description = "Local-first YouTube intelligence pipeline for public-source research."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -14,10 +18,22 @@ dependencies = [
 ]
 keywords = ["youtube", "research", "public-source-intelligence", "content-strategy", "automation"]
 
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0"
+]
+
+[project.scripts]
+youtube-intel = "youtube_intelligence_stack.cli:main"
+
 [project.urls]
 Homepage = "https://github.com/AlekseiUL/youtube-intelligence-stack"
 Repository = "https://github.com/AlekseiUL/youtube-intelligence-stack"
 Issues = "https://github.com/AlekseiUL/youtube-intelligence-stack/issues"
 
-[tool.setuptools]
-py-modules = ["run"]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["youtube_intelligence_stack*"]
+
+[tool.setuptools.package-data]
+youtube_intelligence_stack = ["scripts/*.py", "templates/watchlists/*.yaml"]
