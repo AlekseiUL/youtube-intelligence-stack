@@ -1,5 +1,10 @@
 # Changelog
 
+## v0.4.3 — full help safety
+
+- Made `youtube-intel full <project> --help` and legacy `run.py full --project-root <project> --help` side-effect free.
+- Added regression tests proving full help does not call pipeline layers or create search/report artifacts.
+
 ## v0.4.2 — repo audit polish
 
 - Applied snapshot command timeouts to optional watchlist-channel expansion, not only metadata batch fetches.

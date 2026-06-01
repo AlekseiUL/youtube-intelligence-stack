@@ -42,6 +42,14 @@ def strip_wrapper_flags(extra_args: list[str]) -> list[str]:
     return [item for item in extra_args if item != "--json"]
 
 
+def print_full_help() -> None:
+    print("Usage: youtube-intel full PROJECT_ROOT [--safe] [search args]")
+    print("Runs: search -> transcripts -> comments -> snapshots -> report")
+    print("Search args are passed only to the search layer. Examples:")
+    print("  youtube-intel full ./research-instance --safe")
+    print("  youtube-intel full ./research-instance --query 'AI agents' --limit-per-query 5 --continue-on-search-error")
+
+
 def run_layer_clean(command: str, project_root: Path, extra_args: list[str]) -> None:
     try:
         run_layer(command, project_root, strip_wrapper_flags(extra_args))
@@ -79,6 +87,9 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     if args.command == "full":
+        if any(item in {"-h", "--help"} for item in args.args):
+            print_full_help()
+            return
         safe_mode = "--safe" in args.args
         search_args = strip_wrapper_flags([item for item in args.args if item != "--safe"])
         if safe_mode:

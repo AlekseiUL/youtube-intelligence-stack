@@ -80,6 +80,43 @@ def test_full_safe_mode_passes_conservative_layer_args(monkeypatch, tmp_path: Pa
     assert "--command-timeout-sec" in calls[3][2]
 
 
+def test_full_help_after_project_root_has_no_side_effects(monkeypatch, capsys, tmp_path: Path) -> None:
+    from youtube_intelligence_stack import cli
+
+    calls = []
+
+    def fake_run_layer(command, project_root, extra_args):
+        calls.append((command, Path(project_root), list(extra_args)))
+
+    monkeypatch.setattr(cli, "run_layer", fake_run_layer)
+
+    cli.main(["full", str(tmp_path), "--help"])
+
+    captured = capsys.readouterr()
+    assert "Usage: youtube-intel full PROJECT_ROOT" in captured.out
+    assert "Runs: search -> transcripts -> comments -> snapshots -> report" in captured.out
+    assert calls == []
+    assert not (tmp_path / "data" / "search").exists()
+    assert not (tmp_path / "data" / "reports").exists()
+
+
+def test_legacy_run_py_full_help_after_project_root_has_no_side_effects(tmp_path: Path) -> None:
+    target = tmp_path / "legacy-full-help"
+
+    result = subprocess.run(
+        [sys.executable, "run.py", "full", "--project-root", str(target), "--help"],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "Usage: youtube-intel full PROJECT_ROOT" in result.stdout
+    assert "yt_search.py" not in result.stdout
+    assert not (target / "data" / "search").exists()
+    assert not (target / "data" / "reports").exists()
+
+
 def test_init_creates_public_safe_instance(tmp_path: Path) -> None:
     target = tmp_path / "instance"
 
