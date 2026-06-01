@@ -1,5 +1,7 @@
 # YouTube Intelligence Stack
 
+![YouTube Intelligence Stack promotional hero: bold black-and-yellow thumbnail with YouTube logo and product title.](docs/assets/youtube-intelligence-stack-hero.jpg)
+
 Installable local-first CLI for YouTube public-source research: search public videos, collect transcripts/comments/metrics where available, and turn the evidence into weekly Markdown signal reports.
 
 It is a collector plus deterministic report builder. It does not claim full autonomous intelligence, LLM synthesis, source-confidence scoring, or guaranteed YouTube coverage.

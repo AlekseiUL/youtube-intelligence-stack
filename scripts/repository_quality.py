@@ -11,6 +11,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SKIP_DIRS = {'.git', '.venv', '__pycache__', '.pytest_cache', '.mypy_cache', '.ruff_cache'}
 TEXT_SUFFIXES = {'.py', '.md', '.txt', '.yaml', '.yml', '.json', '.toml', '.ini', '.cfg', '.gitignore'}
+PUBLIC_ASSET_SUFFIXES = {'.jpg', '.jpeg', '.png', '.webp'}
+RUNTIME_MEDIA_SUFFIXES = {'.webm', '.wav', '.mp4', '.mkv', '.ogg'}
 PRIVATE_PATTERNS = {
     'absolute_user_path': re.compile(r'/(Users|home)/[^\s]+'),
     'secret_shape': re.compile(r'(ghp_|gho_|sk-[A-Za-z0-9_-]{20,}|xox[baprs]-|AIza[0-9A-Za-z_-]{20,})'),
@@ -90,6 +92,10 @@ def check_generated_artifacts(errors: list[str]) -> None:
             forbidden.append(str(rel))
         if p.suffix in {'.pyc', '.pyo'} or '__pycache__' in rel.parts:
             forbidden.append(str(rel))
+        if p.suffix.lower() in PUBLIC_ASSET_SUFFIXES and not str(rel).startswith('docs/assets/'):
+            forbidden.append(f'unexpected public image outside docs/assets: {rel}')
+        if p.suffix.lower() in RUNTIME_MEDIA_SUFFIXES:
+            forbidden.append(f'runtime media artifact committed: {rel}')
     for item in forbidden:
         errors.append(f'generated artifact committed: {item}')
 
