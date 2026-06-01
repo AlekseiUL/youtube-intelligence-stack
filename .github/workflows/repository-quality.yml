@@ -1,0 +1,26 @@
+name: repository-quality
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Repository quality scan
+        run: python scripts/repository_quality.py
+      - name: CLI help
+        run: python run.py --help
+      - name: Init instance smoke
+        run: |
+          tmp=$(mktemp -d)
+          python run.py init-instance --project-root "$tmp/youtube-intel-smoke"
+          test -f "$tmp/youtube-intel-smoke/watchlists/topics.yaml"
+          test -f "$tmp/youtube-intel-smoke/watchlists/channels.yaml"

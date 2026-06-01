@@ -1,0 +1,17 @@
+direct:
+  # - name: Example primary channel
+  #   url: https://www.youtube.com/@example
+  #   enabled: true
+  #   tags: [primary, niche]
+
+adjacent:
+  # - name: Example adjacent channel
+  #   url: https://www.youtube.com/@example-adjacent
+  #   enabled: true
+  #   tags: [adjacent, market]
+
+global_signal:
+  # - name: Example global signal channel
+  #   url: https://www.youtube.com/@example-global
+  #   enabled: true
+  #   tags: [market, signals]

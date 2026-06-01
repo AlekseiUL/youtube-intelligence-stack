@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.env
+.env.*
+data/
+outputs/
+reports/
+cache/
+*.sqlite
+*.db
+cookies*.txt
+*.log
+.DS_Store
