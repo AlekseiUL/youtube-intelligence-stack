@@ -209,6 +209,13 @@ See:
 - [`examples/weekly-report.example.md`](examples/weekly-report.example.md)
 - [`examples/instance-layout.md`](examples/instance-layout.md)
 
+## Public links / Полезные ссылки
+
+- YouTube: https://youtube.com/@alekseiulianov
+- Telegram channel - Sprut AI: https://t.me/Sprut_AI
+- Telegram chat - Sprut AI: https://t.me/+eH-qNIDmud8zNDZi
+- AI Операционка: https://t.me/tribute/app?startapp=sJyg
+
 ## Canonical source
 
 This project is maintained by Aleksei Ulianov / Sprut_AI.
@@ -249,3 +256,10 @@ youtube-intel full ~/youtube-intel-demo --safe --query "AI agents" --limit-per-q
 ```
 
 Сгенерированные данные лежат в project instance, а не в кодовом repo. Это специально: так безопаснее публиковать код и не таскать за собой приватную исследовательскую историю.
+
+## Полезные ссылки / ресурсы
+
+- YouTube: https://youtube.com/@alekseiulianov
+- Telegram-канал Sprut AI: https://t.me/Sprut_AI
+- Чат Telegram-канала Sprut AI: https://t.me/+eH-qNIDmud8zNDZi
+- AI Операционка: https://t.me/tribute/app?startapp=sJyg
