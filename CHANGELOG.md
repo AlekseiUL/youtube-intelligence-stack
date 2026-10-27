@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.4.4 — unreleased
+
+- Include the accepted main-branch remediation since the prior published tag.
+- Pin CI Actions to verified commits and add review-first dependency maintenance.
+- Re-run offline regression and clean artifact installation before publication.
+
+
 ## v0.4.3 — full help safety
 
 - Made `youtube-intel full <project> --help` and legacy `run.py full --project-root <project> --help` side-effect free.
