@@ -52,23 +52,34 @@ Main capabilities:
 
 ## Quick start
 
-The recommended first end-to-end smoke is `full --safe`: it uses conservative timeouts and continues through partial YouTube/yt-dlp failures.
+Start with an isolated install and an offline check. You need Git and Python 3.10+ (CI tests 3.10–3.13); the examples use Python 3.12. Use a supported interpreter, not an older system Python. On Debian/Ubuntu, install the matching `python3-venv` OS package if venv creation reports that ensurepip is unavailable. Do not use `sudo pip` or `--break-system-packages`.
 
-### Option A — install as a CLI from GitHub
+### Option A — install as a CLI from GitHub (recommended)
+
+Use a new venv path for a fresh install. If the path below already exists, activate it to reuse it or choose another path; do not recreate an unrelated environment.
 
 ```bash
-python3 -m pip install "git+https://github.com/AlekseiUL/youtube-intelligence-stack.git"
+python3.12 --version
+python3.12 -m venv "$HOME/.venvs/youtube-intel"
+source "$HOME/.venvs/youtube-intel/bin/activate"
+python -m pip install "git+https://github.com/AlekseiUL/youtube-intelligence-stack.git"
+youtube-intel --help
 youtube-intel doctor
 youtube-intel init ~/youtube-intel-demo --template creator
-youtube-intel full ~/youtube-intel-demo --safe --query "AI agents" --limit-per-query 3 --skip-watchlist-channels
+youtube-intel doctor ~/youtube-intel-demo
+youtube-intel report ~/youtube-intel-demo --out ~/youtube-intel-demo/offline-report.md
 ```
+
+Package installation needs network access to GitHub and the package index. The subsequent help/doctor/init/report commands do not collect from YouTube or need cookies or credentials. Doctor should print `overall: ok`; init prints the instance path and creates `watchlists/topics.yaml` and `watchlists/channels.yaml`. The first report is `~/youtube-intel-demo/offline-report.md`. In a fresh instance it says `Evidence insufficient` because no videos have been collected: that is the expected offline result, not a research finding.
+
+In a new terminal, run `source "$HOME/.venvs/youtube-intel/bin/activate"` before using the CLI; `deactivate` leaves the environment. If doctor reports a missing `yt-dlp`, confirm this venv is active and that package installation succeeded. [Offline verification](OFFLINE-VERIFICATION.md) reproduces this install outside the checkout.
 
 ### Option B — run from checkout
 
 ```bash
 git clone https://github.com/AlekseiUL/youtube-intelligence-stack.git
 cd youtube-intelligence-stack
-python3 -m venv .venv
+python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e ".[dev]"
 youtube-intel doctor
@@ -136,7 +147,7 @@ youtube-intel report ~/youtube-intel-demo --max-age-days 7 --min-views 100
 - `--min-views` and `--min-comments` filter weak/empty results before reports.
 - Search bundles and reports include filter accounting: candidates before filters, kept rows, old rows removed, undated rows removed, and threshold removals.
 
-For a conservative end-to-end run, use:
+After the offline check, this optional end-to-end run contacts YouTube and collects public data:
 
 ```bash
 youtube-intel full ~/youtube-intel-demo --safe --query "AI agents" --limit-per-query 3 --skip-watchlist-channels
@@ -195,7 +206,11 @@ This repo intentionally excludes:
 
 ## Development checks
 
+From the checkout, create and activate a dedicated development venv first:
+
 ```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
 python -m pip install -e ".[dev]"
 python scripts/repository_quality.py
 python -m pytest -q
@@ -248,10 +263,29 @@ MIT. See [`LICENSE`](LICENSE).
 
 ## Быстрый старт
 
+Нужны Git и Python 3.10+; CI проверяет версии 3.10–3.13, команды ниже используют Python 3.12. Не полагайтесь на старый системный Python. Если Debian/Ubuntu сообщает об отсутствии ensurepip, установите соответствующий системный пакет `python3-venv`. Не используйте `sudo pip` и `--break-system-packages`.
+
+Для первой установки выберите свободный путь venv. Если указанный каталог уже существует, активируйте его для повторного использования или выберите другой путь; не пересоздавайте чужое окружение.
+
 ```bash
-python3 -m pip install "git+https://github.com/AlekseiUL/youtube-intelligence-stack.git"
+python3.12 --version
+python3.12 -m venv "$HOME/.venvs/youtube-intel"
+source "$HOME/.venvs/youtube-intel/bin/activate"
+python -m pip install "git+https://github.com/AlekseiUL/youtube-intelligence-stack.git"
+youtube-intel --help
 youtube-intel doctor
 youtube-intel init ~/youtube-intel-demo --template creator
+youtube-intel doctor ~/youtube-intel-demo
+youtube-intel report ~/youtube-intel-demo --out ~/youtube-intel-demo/offline-report.md
+```
+
+Установка скачивает пакет и зависимости через GitHub и индекс пакетов. Следующие команды help/doctor/init/report не обращаются к YouTube, не требуют cookies или учётных данных. Doctor должен вывести `overall: ok`; init — путь к проекту и создать `watchlists/topics.yaml` и `watchlists/channels.yaml`. Первый файл — `~/youtube-intel-demo/offline-report.md`. В новом проекте он содержит `Evidence insufficient`: видео ещё не собраны, это ожидаемый результат проверки, а не исследовательский вывод.
+
+В новом терминале сначала выполните `source "$HOME/.venvs/youtube-intel/bin/activate"`; выйти из окружения можно командой `deactivate`. Если doctor не видит `yt-dlp`, проверьте активацию venv и результат установки пакета. Воспроизводимая проверка установки описана в [Offline verification](OFFLINE-VERIFICATION.md).
+
+После локальной проверки можно отдельно запустить сбор публичных данных — эта команда уже обращается к YouTube:
+
+```bash
 youtube-intel full ~/youtube-intel-demo --safe --query "AI agents" --limit-per-query 3 --skip-watchlist-channels
 ```
 
