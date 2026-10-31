@@ -63,12 +63,5 @@ jobs:
           test -s "$inst/report.md"
           grep -q "URL: https://www.youtube.com/watch?v=demo123" "$inst/report.md"
           grep -q "Filter accounting" "$inst/report.md"
-      - name: Installed CLI works outside repo cwd
-        run: |
-          tmp=$(mktemp -d)
-          python -m venv "$tmp/venv"
-          "$tmp/venv/bin/python" -m pip install .
-          cd "$tmp"
-          "$tmp/venv/bin/youtube-intel" --version
-          "$tmp/venv/bin/youtube-intel" init "$tmp/outside-instance"
-          "$tmp/venv/bin/youtube-intel" doctor "$tmp/outside-instance" --json
+      - name: Documented install works outside repo cwd
+        run: python scripts/smoke_documented_install.py
